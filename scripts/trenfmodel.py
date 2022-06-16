@@ -17,14 +17,19 @@ TRENF = flows.TRENF_classic
 class TRENF(tf.keras.Model):
     
     def __init__(self, nc, evolve, nlayers=3, name=None, mode='classic', priorv=1., nknots=100, nbins=32, \
-                 linknots=False, fitmean=True, fitnoise=True, fitscale=True, meanfield=True, tfmode=0, minnoise=0.):
+                 linknots=False, fitmean=True, fitnoise=True, fitscale=True, fitshift=True, meanfield=True, tfmode=0, minnoise=0.):
         super(TRENF, self).__init__(name=name)
         self.nc = nc
+        bs = evolve.bs
         self.prior = tfd.Independent(tfd.MultivariateNormalDiag(loc=tf.zeros((nc, nc, nc, )), \
                                                                 scale_diag= priorv* tf.ones((nc, nc, nc, ))), 2)
         if mode == 'classic':
-            self.trenf = flows.TRENF_classic(nc, nlayers=nlayers, fitmean=fitmean, fitnoise=fitnoise, nknots=nknots, nbins=nbins, \
-                                             fitscale=fitscale, linknots=linknots, tfmode=tfmode, minnoise=minnoise)
+            self.trenf = flows.TRENF_classic(nc, bs=
+
+
+
+bs, nlayers=nlayers, fitmean=fitmean, fitnoise=fitnoise, nknots=nknots, nbins=nbins, \
+                                             fitscale=fitscale, fitshift=fitshift, linknots=linknots, tfmode=tfmode, minnoise=minnoise)
         elif mode == 'affine':
             self.trenf = flows.TRENF_affine(nc, nlayers=nlayers, nknots=nknots, fitmean=fitmean, fitnoise=fitnoise, \
                                             fitscale=fitscale, linknots=linknots, meanfield=meanfield, tfmode=tfmode, minnoise=minnoise)

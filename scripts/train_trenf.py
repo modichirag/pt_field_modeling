@@ -30,6 +30,7 @@ parser.add_argument('--linknots', type=int, default=0, help='linear spacing for 
 parser.add_argument('--kwts', type=int, default=4, help='number of trenf layers')
 parser.add_argument('--fitnoise', type=int, default=0, help='fitnoise')
 parser.add_argument('--fitscale', type=int, default=1, help='fitscale')
+parser.add_argument('--fitshift', type=int, default=1, help='fitshift')
 parser.add_argument('--fitmean', type=int, default=0, help='fitmean')
 parser.add_argument('--meanfield', type=int, default=1, help='meanfield for affine')
 parser.add_argument('--ntrain', type=int, default=2000, help='number of training iterations')
@@ -55,10 +56,7 @@ import sys, os, flowpm
 #sys.path.append('../src/')
 import trenfmodel
 from pmfuncs import Evolve
-#from pyhmc import PyHMC, PyHMC_batch
-#from callback import callback, datafig, callback_fvi, callback_sampling
-#import tools
-#import diagnostics as dg
+import tools
 
 ##########
 bs, nc = args.bs, args.nc
@@ -91,7 +89,7 @@ def train_function(model, samples, opt):
 
 trenf = trenfmodel.TRENF(nc, nlayers=args.nlayers, evolve=evolve, nbins=args.nbins, nknots=args.nknots, mode=args.mode, \
                              linknots=bool(args.linknots), fitnoise=bool(args.fitnoise), fitscale=bool(args.fitscale), \
-                             fitmean=bool(args.fitmean), meanfield=bool(args.meanfield))
+                             fitshift=bool(args.fitshift), fitmean=bool(args.fitmean), meanfield=bool(args.meanfield))
 offset = tf.Variable(0.)*0.
 
 for i in trenf.variables:
@@ -104,18 +102,25 @@ lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
     staircase=True)
 
 #Train FLOW using previos samples assuming we have them
-samples = np.squeeze(np.array([np.load('./tmp/%d.npy'%i) for i in range(5)]))
+samples = np.squeeze(np.array([np.load('./tmp/%d.npy'%i) for i in range(100)]))
 print(samples.shape)
+#generate a sample before training
+plt.imshow(samples[0].sum(axis=0))
+plt.colorbar()
+plt.savefig('./tmp/truesample')
+plt.colorbar()
+plt.close()
 
-trainsamples = samples[:4].copy()
-testsamples = samples[4:].copy()
+trainsamples = samples[:-1].copy()
+testsamples = samples[-1:].copy()
 print("Test train split : ", trainsamples.shape, testsamples.shape)
+print("mean min max : ", samples[0].mean(), samples[0].min(), samples[0].max())
 
-ntrain = 500
-nsamples = 2
+ntrain = args.ntrain
+nsamples = 8
 losses = []
 opt = tf.keras.optimizers.Adam(learning_rate= lr_schedule)
-saveiter = 1000
+saveiter = 100
 
 #generate a sample before training
 plt.imshow(trenf.sample(1)[0].numpy().sum(axis=0))
@@ -127,15 +132,19 @@ plt.close()
 print("Start training")
 for i in range(ntrain):
     idx = np.random.choice(trainsamples.shape[0], nsamples)
-    batch = tf.concat(trainsamples[idx], axis=0)
+    batch = tf.constant([np.rot90(trainsamples[j], np.random.randint(0, 3), np.random.permutation([0, 1, 2])[:2]) for j in idx])
+    #batch = tf.concat(trainsamples[idx], axis=0)
     losses.append(train_function(trenf, batch, opt))
     #save weights
-#     if (i > 0) & (i%saveiter == 0): 
+    if (i > 0) & (i%saveiter == 0):
+        print(losses[-1])
 #         trenf.save_weights(fpath + '/weights/iter%04d'%(i//saveiter))
 print("Training finished")
 
 plt.figure()
 plt.plot(losses)
+plt.loglog()
+plt.grid(which='both')
 plt.savefig('./tmp/losses.png')
 
 #generate a sample after training
@@ -146,3 +155,14 @@ plt.savefig('./tmp/finsample')
 plt.colorbar()
 plt.close()
 
+plt.figure()
+for i in range(10):
+    j = np.random.randint(0, trainsamples.shape[0])
+    k, p = tools.power(1+trainsamples[j], boxsize=bs)
+    plt.plot(k, p, 'C0', alpha=0.5)
+for i in range(10):
+    k, p = tools.power(1+trenf.sample(1)[0].numpy(), boxsize=bs)
+    plt.plot(k, p, 'C1', alpha=0.5)
+plt.grid()
+plt.loglog()
+plt.savefig('./tmp/pk.png')
