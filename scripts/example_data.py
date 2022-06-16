@@ -22,16 +22,10 @@ import flowpm
 print(flowpm, "\n")
 
 sys.path.append('../src/')
-# sys.path.append('../../galference/utils/')
-# sys.path.append('/mnt/home/cmodi/Research/Projects/flowpm-pgd')
-# sys.path.append('../../hmc/src/')
 
 from pmfuncs import Evolve
 from pyhmc import PyHMC, PyHMC_batch, DualAveragingStepSize
-#from callback import callback_sampling, datafig, corner
-#import recon
 from flowpm.scipy.interpolate import interp_tf
-#import trenfmodel
 
 
 #$#
@@ -135,3 +129,7 @@ def cosmo_sim(params, white, retic=False):
 cosmo_sim(params, zic)
 cosmo_sim_fixed(zic)
 
+for i in range(5):
+    zic = np.random.normal(0, 1, nc**3).reshape(1, nc, nc, nc).astype(np.float32)
+    f = cosmo_sim_fixed(zic)
+    np.save('tmp/%d'%i, f.numpy())
