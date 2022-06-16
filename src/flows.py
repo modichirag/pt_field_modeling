@@ -150,7 +150,7 @@ class AffineFlow(tf.keras.Model):
 
 class TRENF_classic(tf.Module):
     
-    def __init__(self, nc, bs=1., fitmean=True, fitnoise=True, nlayers=1, nknots=100, nbins=32, eps=1e-3, name=None, linknots=False, fitscale=True, tfmode=0, minnoise=0.):
+    def __init__(self, nc, bs=1., fitmean=True, fitnoise=True, nlayers=1, nknots=100, nbins=32, eps=1e-3, name=None, linknots=False, fitscale=True, fitshift=True, tfmode=0, minnoise=0.):
         super(TRENF_classic, self).__init__(name=name)
         self.nc = nc
         self.bs = bs
@@ -159,6 +159,7 @@ class TRENF_classic(tf.Module):
         self.nbins = nbins
         self.eps = eps
         self.linknots = linknots
+        self.fitshift = fitshift
         self.fitscale = fitscale
         self.tfmode = tfmode
         if fitmean:
@@ -167,7 +168,7 @@ class TRENF_classic(tf.Module):
           self.loc = tf.zeros([nc, nc, nc], name='loc')
         if fitnoise:
           if minnoise == 0.:
-            self.std = tf.Variable(tf.random.normal([nc, nc, nc])*0+1., name='std')
+            self.std = tf.Variable(tf.random.normal([nc, nc, nc])*0+1. *(nc/bs)**1.5, name='std')
           elif minnoise > 0.: 
             #noise_threshold = tfb.Chain([tfb.Shift(minnoise), tfb.Softplus()])
             self.std = tfp.util.TransformedVariable(tf.random.normal([nc, nc, nc])*0.+1.01, tfb.Softplus(low=minnoise), name='std')
@@ -183,12 +184,13 @@ class TRENF_classic(tf.Module):
         self.tfspecs = [TransferSpectra(nc, nknots, linspace=self.linknots, tfmode=self.tfmode, name='treconv%d/'%i) for i in range(nlayers)]
         self.splines = [SimpleRQSpline(nbins, eps=self.eps, name='spline%d'%i) for i in range(nlayers)]
         
-        self.shift = [tf.Variable(0., name='shift%d/'%i) for i in range(nlayers+1)]
+        if self.fitshift: self.shift = [tf.Variable(0., name='shift%d/'%i) for i in range(nlayers+1)]
+        else: self.shift = [tf.constant(0.) for i in range(nlayers+1)]
         if self.fitscale: self.scale = [tf.Variable(0, name='scale%d/'%i, dtype=tf.float32) for i in range(nlayers+1)]
         else: self.scale = [tf.constant(0.) for i in range(nlayers+1)]
 
         bijectors = []
-        #bijectors.append(tfb.Shift(self.shift[0])(tfb.Scale(log_scale=self.scale[0])))
+        bijectors.append(tfb.Shift(self.shift[0])(tfb.Scale(log_scale=self.scale[0])))
         for i in range(nlayers):
              bijectors.append(self.tfspecs[i])
              bijectors.append(tfb.Shift(self.shift[i])(tfb.Scale(log_scale=self.scale[i])))
